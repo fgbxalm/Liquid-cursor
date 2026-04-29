@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oevra Liquid - Original Effect HD</title>
+    <title>Oevra Liquid - Blue Background HD</title>
     <style>
-        body, html { margin: 0; background: #5d7c50; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
+        /* --- CHANGEMENT ICI : Fond bleu au lieu de vert --- */
+        body, html { margin: 0; background: #1a3b6e; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
         canvas { display: block; }
     </style>
 </head>
@@ -47,7 +48,7 @@
             vec2 pixelPos = gl_FragCoord.xy;
             vec2 diff = pixelPos - u_mouse;
 
-            // L'effet de rotation vaporeuse
+            // Rotation vaporeuse clockwise
             float angle = -u_time * 0.5;
             mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
             vec2 rotatedDiff = rot * diff;
@@ -55,37 +56,38 @@
             // Échelle ovale pour l'aspect organique
             vec2 ovalScale = vec2(0.6, 1.2);
             
-            // Les bruits qui créent la vapeur (ajustés pour le DPR)
+            // Bruits ajustés pour le DPR
             float noise = snoise(pixelPos * (0.003 / u_dpr) - u_time * 0.2) * (50.0 * u_dpr);
             float noise2 = snoise(pixelPos * (0.008 / u_dpr) + u_time * 0.1) * (15.0 * u_dpr);
             
             float d = length(rotatedDiff * ovalScale) + noise + noise2;
             
-            // Rayon large pour mobile
-            float radius = 150.0 * u_dpr;
+            // Rayon large pour mobile HD
+            float radius = 160.0 * u_dpr; 
             float outer = smoothstep(radius, radius * 0.4, d);
             float inner = smoothstep(0.0, radius * 0.5, d);
             float glow = outer * inner;
 
-            // Grain de film constant
+            // Grain de film
             float grain = fract(sin(dot(pixelPos, vec2(12.9898,78.233))) * 43758.5453) * 0.12;
 
             gl_FragColor = vec4(vec3(1.0), (glow * 0.35) + grain);
         }
     </script>
     <script>
+        const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         
-        // --- LA CLÉ POUR LE SAMSUNG : DPR ---
+        // --- DPR pour Samsung HD ---
         const dpr = window.devicePixelRatio || 1;
         renderer.setPixelRatio(dpr);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        container.appendChild(renderer.domElement);
 
         const uniforms = {
-            u_mouse: { value: new THREE.Vector2(-5000, -5000) },
+            u_mouse: { value: new THREE.Vector2(-5000, -5000) }, // Hors écran
             u_time: { value: 0 },
             u_dpr: { value: dpr }
         };
@@ -99,16 +101,16 @@
 
         scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
 
-        function update(x, y) {
+        function updateCoords(x, y) {
             uniforms.u_mouse.value.set(x * dpr, (window.innerHeight - y) * dpr);
         }
 
-        window.addEventListener('mousemove', e => update(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => updateCoords(e.clientX, e.clientY));
         window.addEventListener('touchmove', e => {
-            update(e.touches[0].clientX, e.touches[0].clientY);
+            if(e.touches.length > 0) updateCoords(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: false });
         window.addEventListener('touchstart', e => {
-            update(e.touches[0].clientX, e.touches[0].clientY);
+            if(e.touches.length > 0) updateCoords(e.touches[0].clientX, e.touches[0].clientY);
         });
 
         function animate(time) {
@@ -117,6 +119,11 @@
             requestAnimationFrame(animate);
         }
         animate();
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_mouse.value.set(-5000, -5000); // Reset position
+        });
     </script>
 </body>
 </html>
