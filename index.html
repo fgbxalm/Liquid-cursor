@@ -2,24 +2,22 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Oevra Liquid Cursor - Vaporeux, Round & HD Fixed</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquid Cursor HD</title>
     <style>
-        body, html { margin: 0; background: #5d7c50; overflow: hidden; height: 100vh; cursor: default; touch-action: none; }
-        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        body, html { margin: 0; background: #5d7c50; overflow: hidden; height: 100vh; touch-action: none; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
     <script id="fragmentShader" type="x-shader/x-fragment">
         uniform vec2 u_mouse;
         uniform vec2 u_res;
         uniform float u_time;
-        uniform float u_velocity;
+        varying vec2 vUv;
 
-        // Fonction de bruit Simplex
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -47,119 +45,54 @@
         }
 
         void main() {
-            vec2 pixelPos = gl_FragCoord.xy;
-            vec2 pixelMouse = u_mouse;
-
-            vec2 diff = pixelPos - pixelMouse;
-
-            // --- 1. ROTATION PLUS DOUCE (sens horaire) ---
-            float angle = -u_time * 0.6; // Ralenti pour plus de rondeur
-            float cosA = cos(angle);
-            float sinA = sin(angle);
-            mat2 rot = mat2(cosA, -sinA, sinA, cosA);
-            vec2 rotatedDiff = rot * diff;
-
-            // --- 2. OVALISATION PLUS LARGE (Plus proche du rond) ---
-            // On élargit : X passe à 0.65 (moins compressé) et Y à 1.3
-            vec2 ovalScale = vec2(0.65, 1.3);
-            vec2 scaledDiff = rotatedDiff * ovalScale;
-
-            // --- 3. EFFET LIQUIDE VAPOREUX (Ajusté pour HD) ---
-            // On réduit l'échelle de fréquence (0.003 au lieu de 0.005)
-            // car les pixels physiques sont plus nombreux.
-            float noiseFactor = snoise(pixelPos * 0.003 - u_time * 0.2) * 80.0;
-            float baseD = length(scaledDiff) + noiseFactor;
-            
-            // --- 4. TAILLE ADAPTATIVE POUR ÉCRAN HD ---
-            // On double la taille de base (radius) car les pixels sont 2x ou 3x plus petits.
-            // radius passe de 80.0 à 180.0 pour un look large.
-            float radius = 180.0; 
-            
-            // u_velocity impacte la taille de la texture liquide
-            float outer = smoothstep(radius, radius * 0.5, baseD);
-            float inner = smoothstep(0.0, radius * 0.4, baseD);
-            float glow = outer * inner * 2.5;
-
-            // Grain de film (texture visible sur image_2.png)
-            float grain = fract(sin(dot(pixelPos, vec2(12.9898,78.233))) * 43758.5453) * 0.12;
-
-            // Opacité subtile
-            gl_FragColor = vec4(vec3(1.0), (glow * 0.3) + grain);
+            vec2 st = gl_FragCoord.xy;
+            float d = length(st - u_mouse);
+            float noise = snoise(st * 0.005 + u_time * 0.2) * 40.0;
+            float radius = 150.0;
+            float circle = smoothstep(radius, radius * 0.2, d + noise);
+            float grain = fract(sin(dot(st, vec2(12.9898,78.233))) * 43758.5453) * 0.1;
+            gl_FragColor = vec4(vec3(1.0), circle * 0.4 + grain);
         }
     </script>
-
     <script>
         const container = document.getElementById('canvas-container');
-        let mouse = { x: 0, y: 0 };
-        let smoothMouse = { x: 0, y: 0 };
-        let lastMouse = { x: 0, y: 0 };
-        let velocity = 0;
-
         const scene = new THREE.Scene();
         const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        
-        // --- CORRECTION MOBILE HD ---
-        // Force le rendu à utiliser la résolution physique réelle de l'écran.
-        renderer.setPixelRatio(window.devicePixelRatio); 
-        
+        const dpr = window.devicePixelRatio || 1;
+        renderer.setPixelRatio(dpr);
         renderer.setSize(window.innerWidth, window.innerHeight);
         container.appendChild(renderer.domElement);
 
         const uniforms = {
-            u_mouse: { value: new THREE.Vector2(0, 0) },
-            // On envoie la résolution réelle multipliée par le ratio de pixel
-            u_res: { value: new THREE.Vector2(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio) },
-            u_time: { value: 0 },
-            u_velocity: { value: 0 }
+            u_mouse: { value: new THREE.Vector2(-1000, -1000) },
+            u_time: { value: 0 }
         };
 
+        const geometry = new THREE.PlaneGeometry(2, 2);
         const material = new THREE.ShaderMaterial({
             uniforms,
             vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
             fragmentShader: document.getElementById('fragmentShader').textContent,
             transparent: true
         });
+        scene.add(new THREE.Mesh(geometry, material));
 
-        scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
-
-        // Gestion souris + touch
-        function updateCoords(x, y) {
-            // WebGL a besoin des pixels physiques pour u_mouse
-            mouse.x = x * window.devicePixelRatio;
-            mouse.y = (window.innerHeight - y) * window.devicePixelRatio;
+        function handleMove(x, y) {
+            uniforms.u_mouse.value.set(x * dpr, (window.innerHeight - y) * dpr);
         }
 
-        window.addEventListener('mousemove', e => updateCoords(e.clientX, e.clientY));
-        window.addEventListener('touchstart', e => {
-            if(e.touches.length > 0) updateCoords(e.touches[0].clientX, e.touches[0].clientY);
-        });
+        window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
         window.addEventListener('touchmove', e => {
-            if(e.touches.length > 0) updateCoords(e.touches[0].clientX, e.touches[0].clientY);
+            handleMove(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: false });
 
         function animate(time) {
-            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.15;
-            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.15;
-            
-            let d = Math.sqrt(Math.pow(mouse.x - lastMouse.x, 2) + Math.pow(mouse.y - lastMouse.y, 2));
-            velocity += (d - velocity) * 0.1; 
-            lastMouse.x = mouse.x;
-            lastMouse.y = mouse.y;
-
-            uniforms.u_mouse.value.set(smoothMouse.x, smoothMouse.y);
             uniforms.u_time.value = time * 0.001;
-            uniforms.u_velocity.value = Math.min(velocity / 20.0, 1.0); 
-
             renderer.render(scene, camera);
             requestAnimationFrame(animate);
         }
         animate();
-
-        window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            uniforms.u_res.value.set(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio);
-        });
     </script>
 </body>
 </html>
