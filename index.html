@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oevra - Liquid Overlay</title>
+    <title>Oevra - Expérience Totale</title>
     <style>
         :root { 
             --bg-page: #f5f5f0; 
@@ -12,7 +12,7 @@
             --duration: 0.6s;
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         body { margin: 0; background: var(--bg-page); font-family: -apple-system, sans-serif; color: white; overflow-x: hidden; }
 
         /* CURSEUR PAR-DESSUS TOUT */
@@ -64,7 +64,7 @@
         .close-btn {
             position: fixed; top: 30px; right: 25px; width: 42px; height: 42px;
             border-radius: 50%; background: rgba(0,0,0,0.3); backdrop-filter: blur(15px);
-            color: white; border: none; z-index: 3100; /* Au-dessus du curseur */
+            color: white; border: none; z-index: 3100;
             opacity: 0; display: flex; align-items: center; justify-content: center;
             transition: opacity 0.3s; pointer-events: none; cursor: pointer;
         }
@@ -79,8 +79,10 @@
             <div class="card" onclick="openCard(this)">
                 <img src="https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?auto=format&fit=crop&w=1200&q=80">
                 <div class="card-content">
-                    <h1 style="margin:0; font-size: 32px;">Soin Signature</h1>
-                    <p style="margin-top:20px; opacity:0.7; line-height:1.7;">Le curseur passe maintenant par-dessus l'image et le texte.</p>
+                    <h1 style="margin:0; font-size: 32px; font-weight: 700;">Soin Signature</h1>
+                    <p style="margin-top:20px; opacity:0.7; line-height:1.7; font-size: 18px;">
+                        L'image est ancrée, le texte se dévoile verticalement, et le curseur liquide suit votre doigt par-dessus tout.
+                    </p>
                 </div>
             </div>
         </div>
@@ -88,8 +90,10 @@
             <div class="card" onclick="openCard(this)">
                 <img src="https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=1200&q=80">
                 <div class="card-content">
-                    <h1 style="margin:0; font-size: 32px;">Massage Huile</h1>
-                    <p style="margin-top:20px; opacity:0.7; line-height:1.7;">Fluidité totale et superposition parfaite.</p>
+                    <h1 style="margin:0; font-size: 32px; font-weight: 700;">Massage Huile</h1>
+                    <p style="margin-top:20px; opacity:0.7; line-height:1.7; font-size: 18px;">
+                        Aucun saut d'image à la fermeture. Une transition fluide inspirée de l'App Store.
+                    </p>
                 </div>
             </div>
         </div>
@@ -145,7 +149,7 @@
     </script>
 
     <script>
-        /* CURSEUR ANIMATION */
+        /* --- CURSEUR ET TACTILE --- */
         const canvasContainer = document.getElementById('canvas-container');
         let mouse = { x: 0, y: 0 };
         let smoothMouse = { x: 0, y: 0 };
@@ -175,10 +179,14 @@
 
         scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
 
-        window.addEventListener('mousemove', e => {
-            mouse.x = e.clientX;
-            mouse.y = window.innerHeight - e.clientY; 
-        });
+        function updateCoords(x, y) {
+            mouse.x = x;
+            mouse.y = window.innerHeight - y;
+        }
+
+        window.addEventListener('mousemove', e => updateCoords(e.clientX, e.clientY));
+        window.addEventListener('touchmove', e => { if(e.touches.length) updateCoords(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        window.addEventListener('touchstart', e => { if(e.touches.length) updateCoords(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
 
         function animateCursor(time) {
             smoothMouse.x += (mouse.x - smoothMouse.x) * 0.05;
@@ -194,7 +202,7 @@
         }
         animateCursor();
 
-        /* SOINS LOGIQUE */
+        /* --- LOGIQUE SOINS --- */
         let selectedCard = null;
         let originalRect = null;
 
