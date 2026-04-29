@@ -2,12 +2,13 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oevra Liquid - Fixed Tiny & HD</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Oevra Liquid - Indigo HD</title>
     <style>
-        body, html { margin: 0; background: #1a3b6e; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
-        #canvas-container { position: fixed; top: 0; left: 0; }
-        canvas { display: block; }
+        /* --- CHANGEMENT : Fond Indigo pour valider la mise à jour --- */
+        body, html { margin: 0; background: #4b0082; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+        canvas { display: block; width: 100% !important; height: 100% !important; }
     </style>
 </head>
 <body>
@@ -15,8 +16,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script id="fragmentShader" type="x-shader/x-fragment">
         uniform vec2 u_mouse;
+        uniform vec2 u_res;
         uniform float u_time;
-        uniform float u_dpr;
 
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -45,35 +46,28 @@
         }
 
         void main() {
-            vec2 pixelPos = gl_FragCoord.xy;
-            vec2 diff = pixelPos - u_mouse;
+            vec2 st = gl_FragCoord.xy;
+            vec2 diff = st - u_mouse;
 
-            // Rotation vaporeuse clockwise
+            // Effet vaporeux original
             float angle = -u_time * 0.5;
             mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
             vec2 rotatedDiff = rot * diff;
+            
+            float noise = snoise(st * 0.004 - u_time * 0.2) * 45.0;
+            float d = length(rotatedDiff * vec2(0.7, 1.2)) + noise;
+            
+            // Taille équilibrée
+            float radius = 120.0; 
+            
+            // Lissage haute définition manuel
+            float circle = smoothstep(radius, radius * 0.4, d);
+            float innerCircle = smoothstep(0.0, radius * 0.5, d);
+            float glow = circle * innerCircle;
 
-            // Échelle ovale pour l'aspect organique
-            vec2 ovalScale = vec2(0.6, 1.2);
-            
-            // --- CORRECTION 1 : Bruit à petite échelle ---
-            float noise = snoise(pixelPos * 0.005 - u_time * 0.2) * 15.0; // Réduit
-            float noise2 = snoise(pixelPos * 0.01 + u_time * 0.1) * 5.0; // Réduit
-            
-            float d = length(rotatedDiff * ovalScale) + noise + noise2;
-            
-            // --- CORRECTION 2 : RAYON TOUT PETIT ---
-            // Rayon d'environ 15px physiques (très petit)
-            float radius = 40.0; // Réduit drastiquement
-            
-            float outer = smoothstep(radius, radius * 0.4, d);
-            float inner = smoothstep(0.0, radius * 0.5, d);
-            float glow = outer * inner;
+            float grain = fract(sin(dot(st, vec2(12.9898,78.233))) * 43758.5453) * 0.1;
 
-            // Grain de film constant
-            float grain = fract(sin(dot(pixelPos, vec2(12.9898,78.233))) * 43758.5453) * 0.12;
-
-            gl_FragColor = vec4(vec3(1.0), (glow * 0.35) + grain);
+            gl_FragColor = vec4(vec3(1.0), (glow * 0.4) + grain);
         }
     </script>
     <script>
@@ -81,26 +75,17 @@
         const scene = new THREE.Scene();
         const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         
-        // --- LA CLÉ POUR LE SAMSUNG HD (CORRECTION PIXEL) ---
-        // devicePixelRatio est le facteur de zoom de l'écran mobile (souvent 2 ou 3)
+        // On garde le DPR pour la netteté mais on gère les positions normalement
         const dpr = window.devicePixelRatio || 1;
-
-        // On active l'antilialias
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(dpr);
-        renderer.setSize(window.innerWidth * dpr, window.innerHeight * dpr);
+        renderer.setSize(window.innerWidth, window.innerHeight);
         container.appendChild(renderer.domElement);
 
-        // --- CORRECTION 3 : LA MAGIE DU HD ---
-        // On forcer le conteneur à calculer à la vraie résolution, 
-        // puis on le divise en taille pour le rendre lisse et petit.
-        container.style.transformOrigin = '0 0';
-        container.style.transform = 'scale(' + (1/dpr) + ')';
-
         const uniforms = {
-            u_mouse: { value: new THREE.Vector2(-10000, -10000) }, // Hors écran
-            u_time: { value: 0 },
-            u_dpr: { value: dpr }
+            u_mouse: { value: new THREE.Vector2(-5000, -5000) },
+            u_res: { value: new THREE.Vector2(window.innerWidth * dpr, window.innerHeight * dpr) },
+            u_time: { value: 0 }
         };
 
         const material = new THREE.ShaderMaterial({
@@ -112,17 +97,17 @@
 
         scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
 
-        function updateCoords(clientX, clientY) {
-            // Multiplication par DPR pour corriger l'écart sur mobile HD
-            uniforms.u_mouse.value.set(clientX * dpr, (window.innerHeight * dpr) - (clientY * dpr));
+        function update(x, y) {
+            // Utilisation des pixels physiques pour u_mouse sans décalage scale
+            uniforms.u_mouse.value.set(x * dpr, (window.innerHeight - y) * dpr);
         }
 
-        window.addEventListener('mousemove', e => updateCoords(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => update(e.clientX, e.clientY));
         window.addEventListener('touchmove', e => {
-            if(e.touches.length > 0) updateCoords(e.touches[0].clientX, e.touches[0].clientY);
+            if(e.touches.length > 0) update(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: false });
         window.addEventListener('touchstart', e => {
-            if(e.touches.length > 0) updateCoords(e.touches[0].clientX, e.touches[0].clientY);
+            if(e.touches.length > 0) update(e.touches[0].clientX, e.touches[0].clientY);
         });
 
         function animate(time) {
@@ -133,8 +118,8 @@
         animate();
 
         window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth * dpr, window.innerHeight * dpr);
-            container.style.transform = 'scale(' + (1/dpr) + ')';
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_res.value.set(window.innerWidth * dpr, window.innerHeight * dpr);
         });
     </script>
 </body>
