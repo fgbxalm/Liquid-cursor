@@ -3,37 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oevra - Expérience Totale</title>
+    <title>Oevra - Perfect Layering</title>
     <style>
         :root { 
-            --bg-page: #f5f5f0; 
+            --bg-page: #ece8d9; /* Beige Sable Fin */
             --bg-card: #062419; 
             --apple-ease: cubic-bezier(0.4, 0, 0.1, 1);
             --duration: 0.6s;
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; background: var(--bg-page); font-family: -apple-system, sans-serif; color: white; overflow-x: hidden; }
 
-        /* CURSEUR PAR-DESSUS TOUT */
-        #canvas-container { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            z-index: 3000; 
-            pointer-events: none; 
-        }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 3000; pointer-events: none; }
 
-        .container { position: relative; z-index: 2; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
-        
-        .card-placeholder { width: 100%; height: 280px; position: relative; }
+        .container { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+        .card-placeholder { width: 100%; height: 280px; }
 
         .card {
             width: 100%; height: 280px;
             border-radius: 40px; overflow: hidden;
             background: var(--bg-card); cursor: pointer;
-            position: absolute; top: 0; left: 0;
-            z-index: 10;
-            transition: all var(--duration) var(--apple-ease);
-            will-change: transform, width, height, top, left, border-radius;
+            z-index: 10; /* Z-index de base */
+            will-change: top, left, width, height, border-radius, z-index;
+            transition: 
+                top var(--duration) var(--apple-ease), 
+                left var(--duration) var(--apple-ease), 
+                width var(--duration) var(--apple-ease), 
+                height var(--duration) var(--apple-ease), 
+                border-radius var(--duration) var(--apple-ease);
         }
 
         .card img { 
@@ -42,7 +40,7 @@
             position: absolute; top: 0; left: 0;
             transform: translateX(var(--img-x, 0px));
             transition: transform var(--duration) var(--apple-ease), border-radius var(--duration) var(--apple-ease);
-            border-radius: 40px 40px 0 0; 
+            border-radius: 40px 40px 0 0;
         }
 
         .card-content {
@@ -51,22 +49,25 @@
             opacity: 0; transition: opacity 0.3s;
         }
 
+        /* État Ouvert */
         .card.is-open {
-            position: fixed; z-index: 2000;
+            z-index: 2000 !important; /* Priorité maximale quand ouvert */
             top: 0 !important; left: 0 !important;
             width: 100vw !important; height: 100vh !important;
             border-radius: 0 !important;
         }
-
         .card.is-open img { transform: translateX(0) !important; border-radius: 0 !important; }
         .card.is-open .card-content { opacity: 1; }
+
+        /* Classe temporaire pour la fermeture afin de rester au-dessus de l'autre carte */
+        .is-closing { z-index: 100 !important; }
 
         .close-btn {
             position: fixed; top: 30px; right: 25px; width: 42px; height: 42px;
             border-radius: 50%; background: rgba(0,0,0,0.3); backdrop-filter: blur(15px);
-            color: white; border: none; z-index: 3100;
-            opacity: 0; display: flex; align-items: center; justify-content: center;
-            transition: opacity 0.3s; pointer-events: none; cursor: pointer;
+            color: white; border: none; z-index: 3100; opacity: 0;
+            display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.3s; pointer-events: none;
         }
     </style>
 </head>
@@ -80,9 +81,7 @@
                 <img src="https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?auto=format&fit=crop&w=1200&q=80">
                 <div class="card-content">
                     <h1 style="margin:0; font-size: 32px; font-weight: 700;">Soin Signature</h1>
-                    <p style="margin-top:20px; opacity:0.7; line-height:1.7; font-size: 18px;">
-                        L'image est ancrée, le texte se dévoile verticalement, et le curseur liquide suit votre doigt par-dessus tout.
-                    </p>
+                    <p style="margin-top:20px; opacity:0.7; line-height:1.7;">Ce soin se fermera toujours par-dessus le second.</p>
                 </div>
             </div>
         </div>
@@ -91,9 +90,7 @@
                 <img src="https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=1200&q=80">
                 <div class="card-content">
                     <h1 style="margin:0; font-size: 32px; font-weight: 700;">Massage Huile</h1>
-                    <p style="margin-top:20px; opacity:0.7; line-height:1.7; font-size: 18px;">
-                        Aucun saut d'image à la fermeture. Une transition fluide inspirée de l'App Store.
-                    </p>
+                    <p style="margin-top:20px; opacity:0.7; line-height:1.7;">Gestion dynamique des couches (z-index).</p>
                 </div>
             </div>
         </div>
@@ -149,101 +146,83 @@
     </script>
 
     <script>
-        /* --- CURSEUR ET TACTILE --- */
-        const canvasContainer = document.getElementById('canvas-container');
-        let mouse = { x: 0, y: 0 };
-        let smoothMouse = { x: 0, y: 0 };
-        let lastMouse = { x: 0, y: 0 };
-        let velocity = 0;
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        /* CURSEUR / TACTILE */
+        let mouse = { x: 0, y: 0 }, smoothMouse = { x: 0, y: 0 }, lastMouse = { x: 0, y: 0 }, velocity = 0;
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(1);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        canvasContainer.appendChild(renderer.domElement);
-
-        const uniforms = {
-            u_mouse: { value: new THREE.Vector2(0, 0) },
-            u_res: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-            u_time: { value: 0 },
-            u_velocity: { value: 0 }
-        };
-
-        const mat = new THREE.ShaderMaterial({
-            uniforms,
-            vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
-            fragmentShader: document.getElementById('fragmentShader').textContent,
-            transparent: true
-        });
-
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        const scene = new THREE.Scene(), camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const uniforms = { u_mouse: { value: new THREE.Vector2(0, 0) }, u_res: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }, u_time: { value: 0 }, u_velocity: { value: 0 } };
+        const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`, fragmentShader: document.getElementById('fragmentShader').textContent, transparent: true });
         scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
-
-        function updateCoords(x, y) {
-            mouse.x = x;
-            mouse.y = window.innerHeight - y;
-        }
-
+        function updateCoords(x, y) { mouse.x = x; mouse.y = window.innerHeight - y; }
         window.addEventListener('mousemove', e => updateCoords(e.clientX, e.clientY));
         window.addEventListener('touchmove', e => { if(e.touches.length) updateCoords(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
         window.addEventListener('touchstart', e => { if(e.touches.length) updateCoords(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
-
         function animateCursor(time) {
-            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.05;
-            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.05;
+            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.05; smoothMouse.y += (mouse.y - smoothMouse.y) * 0.05;
             let d = Math.sqrt(Math.pow(mouse.x - lastMouse.x, 2) + Math.pow(mouse.y - lastMouse.y, 2));
-            velocity += (d - velocity) * 0.05;
-            lastMouse.x = mouse.x; lastMouse.y = mouse.y;
-            uniforms.u_mouse.value.set(smoothMouse.x, smoothMouse.y);
-            uniforms.u_time.value = time * 0.001;
-            uniforms.u_velocity.value = Math.min(velocity / 30.0, 1.0);
-            renderer.render(scene, camera);
-            requestAnimationFrame(animateCursor);
+            velocity += (d - velocity) * 0.05; lastMouse.x = mouse.x; lastMouse.y = mouse.y;
+            uniforms.u_mouse.value.set(smoothMouse.x, smoothMouse.y); uniforms.u_time.value = time * 0.001; uniforms.u_velocity.value = Math.min(velocity / 30.0, 1.0);
+            renderer.render(scene, camera); requestAnimationFrame(animateCursor);
         }
         animateCursor();
 
-        /* --- LOGIQUE SOINS --- */
+        /* LOGIQUE SOINS PRÉ-RENDU ET ORDRE DE COUCHE */
         let selectedCard = null;
-        let originalRect = null;
+        const cardsData = new Map();
+
+        function initCards() {
+            document.querySelectorAll('.card').forEach(card => {
+                const r = card.parentElement.getBoundingClientRect();
+                card.style.position = 'fixed';
+                card.style.top = r.top + 'px';
+                card.style.left = r.left + 'px';
+                card.style.width = r.width + 'px';
+                card.style.height = r.height + 'px';
+                card.style.setProperty('--img-x', `${-r.left}px`);
+                cardsData.set(card, { top: r.top + 'px', left: r.left + 'px', width: r.width + 'px', height: r.height + 'px' });
+            });
+        }
+
+        window.addEventListener('load', initCards);
+        window.addEventListener('scroll', initCards);
+        window.addEventListener('resize', () => { initCards(); renderer.setSize(window.innerWidth, window.innerHeight); uniforms.u_res.value.set(window.innerWidth, window.innerHeight); });
 
         function openCard(card) {
             if (selectedCard) return;
             selectedCard = card;
-            originalRect = card.getBoundingClientRect();
-            card.style.top = originalRect.top + 'px';
-            card.style.left = originalRect.left + 'px';
-            card.style.width = originalRect.width + 'px';
-            card.style.height = originalRect.height + 'px';
-            card.style.position = 'fixed';
-            card.style.setProperty('--img-x', `${-originalRect.left}px`);
-            requestAnimationFrame(() => {
-                card.classList.add('is-open');
-                document.getElementById('close').style.opacity = '1';
-                document.getElementById('close').style.pointerEvents = 'auto';
-                document.body.style.overflow = 'hidden';
-            });
+            
+            // On s'assure qu'elle est au-dessus de tout le reste
+            card.classList.add('is-open');
+            document.getElementById('close').style.opacity = '1';
+            document.getElementById('close').style.pointerEvents = 'auto';
+            document.body.style.overflow = 'hidden';
         }
 
         function closeCard() {
             if (!selectedCard) return;
+            const card = selectedCard;
+            const data = cardsData.get(card);
+            
             document.getElementById('close').style.opacity = '0';
             document.getElementById('close').style.pointerEvents = 'none';
-            selectedCard.style.top = originalRect.top + 'px';
-            selectedCard.style.left = originalRect.left + 'px';
-            selectedCard.style.width = originalRect.width + 'px';
-            selectedCard.style.height = originalRect.height + 'px';
-            selectedCard.style.setProperty('--img-x', `${-originalRect.left}px`);
-            selectedCard.classList.remove('is-open');
+
+            // On retire 'is-open' mais on ajoute 'is-closing' pour garder le z-index élevé pendant la fermeture
+            card.classList.remove('is-open');
+            card.classList.add('is-closing');
+            
+            card.style.top = data.top;
+            card.style.left = data.left;
+            card.style.width = data.width;
+            card.style.height = data.height;
+
             setTimeout(() => {
+                card.classList.remove('is-closing');
                 document.body.style.overflow = '';
                 selectedCard = null;
             }, 600);
         }
-
-        window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            uniforms.u_res.value.set(window.innerWidth, window.innerHeight);
-        });
     </script>
 </body>
 </html>
