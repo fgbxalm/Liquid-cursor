@@ -3,20 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oevra Liquid - Emerald 130%</title>
+    <title>Oevra - Liquid Overlay</title>
     <style>
-        /* --- CHANGEMENT : Fond Émeraude Sombre pour valider la mise à jour --- */
-        body, html { margin: 0; background: #062419; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
-        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
-        canvas { display: block; width: 100% !important; height: 100% !important; }
+        :root { 
+            --bg-page: #f5f5f0; 
+            --bg-card: #062419; 
+            --apple-ease: cubic-bezier(0.4, 0, 0.1, 1);
+            --duration: 0.6s;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: var(--bg-page); font-family: -apple-system, sans-serif; color: white; overflow-x: hidden; }
+
+        /* CURSEUR PAR-DESSUS TOUT */
+        #canvas-container { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 3000; 
+            pointer-events: none; 
+        }
+
+        .container { position: relative; z-index: 2; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+        
+        .card-placeholder { width: 100%; height: 280px; position: relative; }
+
+        .card {
+            width: 100%; height: 280px;
+            border-radius: 40px; overflow: hidden;
+            background: var(--bg-card); cursor: pointer;
+            position: absolute; top: 0; left: 0;
+            z-index: 10;
+            transition: all var(--duration) var(--apple-ease);
+            will-change: transform, width, height, top, left, border-radius;
+        }
+
+        .card img { 
+            width: 100vw; height: 60vh; 
+            object-fit: cover; display: block;
+            position: absolute; top: 0; left: 0;
+            transform: translateX(var(--img-x, 0px));
+            transition: transform var(--duration) var(--apple-ease), border-radius var(--duration) var(--apple-ease);
+            border-radius: 40px 40px 0 0; 
+        }
+
+        .card-content {
+            margin-top: 60vh; padding: 40px 30px;
+            background: var(--bg-card); height: 40vh;
+            opacity: 0; transition: opacity 0.3s;
+        }
+
+        .card.is-open {
+            position: fixed; z-index: 2000;
+            top: 0 !important; left: 0 !important;
+            width: 100vw !important; height: 100vh !important;
+            border-radius: 0 !important;
+        }
+
+        .card.is-open img { transform: translateX(0) !important; border-radius: 0 !important; }
+        .card.is-open .card-content { opacity: 1; }
+
+        .close-btn {
+            position: fixed; top: 30px; right: 25px; width: 42px; height: 42px;
+            border-radius: 50%; background: rgba(0,0,0,0.3); backdrop-filter: blur(15px);
+            color: white; border: none; z-index: 3100; /* Au-dessus du curseur */
+            opacity: 0; display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.3s; pointer-events: none; cursor: pointer;
+        }
     </style>
 </head>
 <body>
+
     <div id="canvas-container"></div>
+
+    <div class="container">
+        <div class="card-placeholder">
+            <div class="card" onclick="openCard(this)">
+                <img src="https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?auto=format&fit=crop&w=1200&q=80">
+                <div class="card-content">
+                    <h1 style="margin:0; font-size: 32px;">Soin Signature</h1>
+                    <p style="margin-top:20px; opacity:0.7; line-height:1.7;">Le curseur passe maintenant par-dessus l'image et le texte.</p>
+                </div>
+            </div>
+        </div>
+        <div class="card-placeholder">
+            <div class="card" onclick="openCard(this)">
+                <img src="https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=1200&q=80">
+                <div class="card-content">
+                    <h1 style="margin:0; font-size: 32px;">Massage Huile</h1>
+                    <p style="margin-top:20px; opacity:0.7; line-height:1.7;">Fluidité totale et superposition parfaite.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="close-btn" id="close" onclick="closeCard()">✕</button>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script id="fragmentShader" type="x-shader/x-fragment">
         uniform vec2 u_mouse;
+        uniform vec2 u_res;
         uniform float u_time;
+        uniform float u_velocity;
 
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -45,76 +131,110 @@
         }
 
         void main() {
-            vec2 st = gl_FragCoord.xy;
-            vec2 diff = st - u_mouse;
-
-            float angle = -u_time * 0.5;
-            mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
-            vec2 rotatedDiff = rot * diff;
-            
-            // On garde le bruit vaporeux intact
-            float noise = snoise(st * 0.004 - u_time * 0.2) * 45.0;
-            float d = length(rotatedDiff * vec2(0.7, 1.2)) + noise;
-            
-            // --- TAILLE : 158.0 (Augmentation de 20% par rapport à 132.0) ---
-            float radius = 158.0; 
-            
-            float circle = smoothstep(radius, radius * 0.4, d);
-            float innerCircle = smoothstep(0.0, radius * 0.5, d);
-            float glow = circle * innerCircle;
-
-            float grain = fract(sin(dot(st, vec2(12.9898,78.233))) * 43758.5453) * 0.1;
-
-            gl_FragColor = vec4(vec3(1.0), (glow * 0.4) + grain);
+            vec2 pixelPos = gl_FragCoord.xy;
+            vec2 pixelMouse = u_mouse;
+            float noise = snoise(pixelPos * 0.005 - u_time * 0.15) * 40.0;
+            float d = distance(pixelPos, pixelMouse + noise);
+            float radius = 90.0 + (u_velocity * 50.0);
+            float outer = smoothstep(radius, radius * 0.5, d);
+            float inner = smoothstep(0.0, radius * 0.4, d);
+            float glow = outer * inner * 2.0;
+            float grain = fract(sin(dot(pixelPos, vec2(12.9898,78.233))) * 43758.5453) * 0.08;
+            gl_FragColor = vec4(vec3(1.0), (glow * 0.25) + grain);
         }
     </script>
+
     <script>
-        const container = document.getElementById('canvas-container');
+        /* CURSEUR ANIMATION */
+        const canvasContainer = document.getElementById('canvas-container');
+        let mouse = { x: 0, y: 0 };
+        let smoothMouse = { x: 0, y: 0 };
+        let lastMouse = { x: 0, y: 0 };
+        let velocity = 0;
+
         const scene = new THREE.Scene();
         const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        
-        const dpr = window.devicePixelRatio || 1;
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(dpr);
+        renderer.setPixelRatio(1);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        container.appendChild(renderer.domElement);
+        canvasContainer.appendChild(renderer.domElement);
 
         const uniforms = {
-            u_mouse: { value: new THREE.Vector2(-5000, -5000) },
-            u_time: { value: 0 }
+            u_mouse: { value: new THREE.Vector2(0, 0) },
+            u_res: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            u_time: { value: 0 },
+            u_velocity: { value: 0 }
         };
 
-        const material = new THREE.ShaderMaterial({
+        const mat = new THREE.ShaderMaterial({
             uniforms,
             vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
             fragmentShader: document.getElementById('fragmentShader').textContent,
             transparent: true
         });
 
-        scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+        scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
 
-        function update(x, y) {
-            // Toujours aligné sur les pixels physiques pour ton Samsung
-            uniforms.u_mouse.value.set(x * dpr, (window.innerHeight - y) * dpr);
-        }
-
-        window.addEventListener('mousemove', e => update(e.clientX, e.clientY));
-        window.addEventListener('touchmove', e => {
-            if(e.touches.length > 0) update(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: false });
-        window.addEventListener('touchstart', e => {
-            if(e.touches.length > 0) update(e.touches[0].clientX, e.touches[0].clientY);
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            mouse.y = window.innerHeight - e.clientY; 
         });
 
-        function animate(time) {
+        function animateCursor(time) {
+            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.05;
+            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.05;
+            let d = Math.sqrt(Math.pow(mouse.x - lastMouse.x, 2) + Math.pow(mouse.y - lastMouse.y, 2));
+            velocity += (d - velocity) * 0.05;
+            lastMouse.x = mouse.x; lastMouse.y = mouse.y;
+            uniforms.u_mouse.value.set(smoothMouse.x, smoothMouse.y);
             uniforms.u_time.value = time * 0.001;
+            uniforms.u_velocity.value = Math.min(velocity / 30.0, 1.0);
             renderer.render(scene, camera);
-            requestAnimationFrame(animate);
+            requestAnimationFrame(animateCursor);
         }
-        animate();
+        animateCursor();
+
+        /* SOINS LOGIQUE */
+        let selectedCard = null;
+        let originalRect = null;
+
+        function openCard(card) {
+            if (selectedCard) return;
+            selectedCard = card;
+            originalRect = card.getBoundingClientRect();
+            card.style.top = originalRect.top + 'px';
+            card.style.left = originalRect.left + 'px';
+            card.style.width = originalRect.width + 'px';
+            card.style.height = originalRect.height + 'px';
+            card.style.position = 'fixed';
+            card.style.setProperty('--img-x', `${-originalRect.left}px`);
+            requestAnimationFrame(() => {
+                card.classList.add('is-open');
+                document.getElementById('close').style.opacity = '1';
+                document.getElementById('close').style.pointerEvents = 'auto';
+                document.body.style.overflow = 'hidden';
+            });
+        }
+
+        function closeCard() {
+            if (!selectedCard) return;
+            document.getElementById('close').style.opacity = '0';
+            document.getElementById('close').style.pointerEvents = 'none';
+            selectedCard.style.top = originalRect.top + 'px';
+            selectedCard.style.left = originalRect.left + 'px';
+            selectedCard.style.width = originalRect.width + 'px';
+            selectedCard.style.height = originalRect.height + 'px';
+            selectedCard.style.setProperty('--img-x', `${-originalRect.left}px`);
+            selectedCard.classList.remove('is-open');
+            setTimeout(() => {
+                document.body.style.overflow = '';
+                selectedCard = null;
+            }, 600);
+        }
 
         window.addEventListener('resize', () => {
             renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_res.value.set(window.innerWidth, window.innerHeight);
         });
     </script>
 </body>
