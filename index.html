@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oevra Liquid - Anthracite 110%</title>
+    <title>Oevra Liquid - Emerald 130%</title>
     <style>
-        /* --- CHANGEMENT : Fond Gris Anthracite pour valider la mise à jour --- */
-        body, html { margin: 0; background: #121212; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
+        /* --- CHANGEMENT : Fond Émeraude Sombre pour valider la mise à jour --- */
+        body, html { margin: 0; background: #062419; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
         #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
         canvas { display: block; width: 100% !important; height: 100% !important; }
     </style>
@@ -52,12 +52,12 @@
             mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
             vec2 rotatedDiff = rot * diff;
             
-            // Bruit vaporeux original maintenu
+            // On garde le bruit vaporeux intact
             float noise = snoise(st * 0.004 - u_time * 0.2) * 45.0;
             float d = length(rotatedDiff * vec2(0.7, 1.2)) + noise;
             
-            // --- TAILLE : 132.0 (soit +10% par rapport à 120.0) ---
-            float radius = 132.0; 
+            // --- TAILLE : 158.0 (Augmentation de 20% par rapport à 132.0) ---
+            float radius = 158.0; 
             
             float circle = smoothstep(radius, radius * 0.4, d);
             float innerCircle = smoothstep(0.0, radius * 0.5, d);
@@ -94,6 +94,7 @@
         scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
 
         function update(x, y) {
+            // Toujours aligné sur les pixels physiques pour ton Samsung
             uniforms.u_mouse.value.set(x * dpr, (window.innerHeight - y) * dpr);
         }
 
