@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oevra Liquid - Blue Background HD</title>
+    <title>Oevra Liquid - Fixed Tiny & HD</title>
     <style>
-        /* --- CHANGEMENT ICI : Fond bleu au lieu de vert --- */
         body, html { margin: 0; background: #1a3b6e; overflow: hidden; height: 100vh; touch-action: none; cursor: none; }
+        #canvas-container { position: fixed; top: 0; left: 0; }
         canvas { display: block; }
     </style>
 </head>
@@ -56,19 +56,21 @@
             // Échelle ovale pour l'aspect organique
             vec2 ovalScale = vec2(0.6, 1.2);
             
-            // Bruits ajustés pour le DPR
-            float noise = snoise(pixelPos * (0.003 / u_dpr) - u_time * 0.2) * (50.0 * u_dpr);
-            float noise2 = snoise(pixelPos * (0.008 / u_dpr) + u_time * 0.1) * (15.0 * u_dpr);
+            // --- CORRECTION 1 : Bruit à petite échelle ---
+            float noise = snoise(pixelPos * 0.005 - u_time * 0.2) * 15.0; // Réduit
+            float noise2 = snoise(pixelPos * 0.01 + u_time * 0.1) * 5.0; // Réduit
             
             float d = length(rotatedDiff * ovalScale) + noise + noise2;
             
-            // Rayon large pour mobile HD
-            float radius = 160.0 * u_dpr; 
+            // --- CORRECTION 2 : RAYON TOUT PETIT ---
+            // Rayon d'environ 15px physiques (très petit)
+            float radius = 40.0; // Réduit drastiquement
+            
             float outer = smoothstep(radius, radius * 0.4, d);
             float inner = smoothstep(0.0, radius * 0.5, d);
             float glow = outer * inner;
 
-            // Grain de film
+            // Grain de film constant
             float grain = fract(sin(dot(pixelPos, vec2(12.9898,78.233))) * 43758.5453) * 0.12;
 
             gl_FragColor = vec4(vec3(1.0), (glow * 0.35) + grain);
@@ -78,16 +80,25 @@
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         
-        // --- DPR pour Samsung HD ---
+        // --- LA CLÉ POUR LE SAMSUNG HD (CORRECTION PIXEL) ---
+        // devicePixelRatio est le facteur de zoom de l'écran mobile (souvent 2 ou 3)
         const dpr = window.devicePixelRatio || 1;
+
+        // On active l'antilialias
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(dpr);
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(window.innerWidth * dpr, window.innerHeight * dpr);
         container.appendChild(renderer.domElement);
 
+        // --- CORRECTION 3 : LA MAGIE DU HD ---
+        // On forcer le conteneur à calculer à la vraie résolution, 
+        // puis on le divise en taille pour le rendre lisse et petit.
+        container.style.transformOrigin = '0 0';
+        container.style.transform = 'scale(' + (1/dpr) + ')';
+
         const uniforms = {
-            u_mouse: { value: new THREE.Vector2(-5000, -5000) }, // Hors écran
+            u_mouse: { value: new THREE.Vector2(-10000, -10000) }, // Hors écran
             u_time: { value: 0 },
             u_dpr: { value: dpr }
         };
@@ -101,8 +112,9 @@
 
         scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
 
-        function updateCoords(x, y) {
-            uniforms.u_mouse.value.set(x * dpr, (window.innerHeight - y) * dpr);
+        function updateCoords(clientX, clientY) {
+            // Multiplication par DPR pour corriger l'écart sur mobile HD
+            uniforms.u_mouse.value.set(clientX * dpr, (window.innerHeight * dpr) - (clientY * dpr));
         }
 
         window.addEventListener('mousemove', e => updateCoords(e.clientX, e.clientY));
@@ -121,8 +133,8 @@
         animate();
 
         window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            uniforms.u_mouse.value.set(-5000, -5000); // Reset position
+            renderer.setSize(window.innerWidth * dpr, window.innerHeight * dpr);
+            container.style.transform = 'scale(' + (1/dpr) + ')';
         });
     </script>
 </body>
