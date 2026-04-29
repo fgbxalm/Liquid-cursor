@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Oevra Liquid Cursor - Round, Vaporeux & HD Mobile</title>
+    <title>Oevra Liquid Cursor - Vaporeux, Round & HD Fixed</title>
     <style>
         body, html { margin: 0; background: #5d7c50; overflow: hidden; height: 100vh; cursor: default; touch-action: none; }
         #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
@@ -19,7 +19,7 @@
         uniform float u_time;
         uniform float u_velocity;
 
-        // Fonction de bruit Simplex pour l'aspect vaporeux
+        // Fonction de bruit Simplex
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -80,7 +80,7 @@
             float inner = smoothstep(0.0, radius * 0.4, baseD);
             float glow = outer * inner * 2.5;
 
-            // Grain de film (Look image_2.png)
+            // Grain de film (texture visible sur image_2.png)
             float grain = fract(sin(dot(pixelPos, vec2(12.9898,78.233))) * 43758.5453) * 0.12;
 
             // Opacité subtile
@@ -97,12 +97,10 @@
 
         const scene = new THREE.Scene();
         const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        
-        // CORRECTION MAJEURE ICI : Activation explicite de l'anti-alias
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         
-        // --- CORRECTION MOBILE HD (Retina) ---
-        // Force le rendu à utiliser la résolution physique de l'écran.
+        // --- CORRECTION MOBILE HD ---
+        // Force le rendu à utiliser la résolution physique réelle de l'écran.
         renderer.setPixelRatio(window.devicePixelRatio); 
         
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -144,4 +142,24 @@
             smoothMouse.x += (mouse.x - smoothMouse.x) * 0.15;
             smoothMouse.y += (mouse.y - smoothMouse.y) * 0.15;
             
-            let d = Math.sqrt(Math.pow(mouse.x - lastMouse
+            let d = Math.sqrt(Math.pow(mouse.x - lastMouse.x, 2) + Math.pow(mouse.y - lastMouse.y, 2));
+            velocity += (d - velocity) * 0.1; 
+            lastMouse.x = mouse.x;
+            lastMouse.y = mouse.y;
+
+            uniforms.u_mouse.value.set(smoothMouse.x, smoothMouse.y);
+            uniforms.u_time.value = time * 0.001;
+            uniforms.u_velocity.value = Math.min(velocity / 20.0, 1.0); 
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_res.value.set(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio);
+        });
+    </script>
+</body>
+</html>
