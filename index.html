@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Oevra Liquid Cursor - Small & Slow</title>
+    <style>
+        body, html { margin: 0; background: #5d7c50; overflow: hidden; height: 100vh; cursor: default; }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform vec2 u_mouse;
+        uniform vec2 u_res;
+        uniform float u_time;
+        uniform float u_velocity;
+
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+
+        float snoise(vec2 v) {
+            const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+            vec2 i  = floor(v + dot(v, C.yy) );
+            vec2 x0 = v -   i + dot(i, C.xx);
+            vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+            vec4 x12 = x0.xyxy + C.xxzz;
+            x12.xy -= i1;
+            i = mod289(i);
+            vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+            vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+            m = m*m ; m = m*m ;
+            vec3 x = 2.0 * fract(p * C.www) - 1.0;
+            vec3 h = abs(x) - 0.5;
+            vec3 ox = floor(x + 0.5);
+            vec3 a0 = x - ox;
+            m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+            vec3 g;
+            g.x  = a0.x  * x0.x  + h.x  * x0.y;
+            g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+            return 130.0 * dot(m, g);
+        }
+
+        void main() {
+            vec2 pixelPos = gl_FragCoord.xy;
+            vec2 pixelMouse = u_mouse;
+
+            // BRUIT MOINS RAPIDE : multiplication du temps par 0.15 (au lieu de 0.5)
+            float noise = snoise(pixelPos * 0.005 - u_time * 0.15) * 40.0;
+            
+            float d = distance(pixelPos, pixelMouse + noise);
+            
+            // PLUS PETIT : Rayon de base réduit à 90px (au lieu de 180px)
+            float radius = 90.0 + (u_velocity * 50.0);
+            
+            float outer = smoothstep(radius, radius * 0.5, d);
+            float inner = smoothstep(0.0, radius * 0.4, d);
+            float glow = outer * inner * 2.0;
+
+            // Grain de film
+            float grain = fract(sin(dot(pixelPos, vec2(12.9898,78.233))) * 43758.5453) * 0.08;
+
+            // Opacité subtile conservée
+            gl_FragColor = vec4(vec3(1.0), (glow * 0.25) + grain);
+        }
+    </script>
+
+    <script>
+        const container = document.getElementById('canvas-container');
+        let mouse = { x: 0, y: 0 };
+        let smoothMouse = { x: 0, y: 0 };
+        let lastMouse = { x: 0, y: 0 };
+        let velocity = 0;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        
+        // Pixel Ratio strict pour alignement
+        renderer.setPixelRatio(1); 
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        const uniforms = {
+            u_mouse: { value: new THREE.Vector2(0, 0) },
+            u_res: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            u_time: { value: 0 },
+            u_velocity: { value: 0 }
+        };
+
+        const material = new THREE.ShaderMaterial({
+            uniforms,
+            vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
+            fragmentShader: document.getElementById('fragmentShader').textContent,
+            transparent: true
+        });
+
+        scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            // WebGL Y axis starts from bottom
+            mouse.y = window.innerHeight - e.clientY; 
+        });
+
+        function animate(time) {
+            // MOINS RAPIDE (SUIVI) : Lerp réduit à 0.05 (au lieu de 0.15).
+            // Le halo met plus de temps à 'rattraper' le curseur.
+            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.05;
+            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.05;
+            
+            // Calcul de vélocité pour l'étirement (amorti aussi)
+            let d = Math.sqrt(Math.pow(mouse.x - lastMouse.x, 2) + Math.pow(mouse.y - lastMouse.y, 2));
+            velocity += (d - velocity) * 0.05;
+            lastMouse.x = mouse.x;
+            lastMouse.y = mouse.y;
+
+            uniforms.u_mouse.value.set(smoothMouse.x, smoothMouse.y);
+            uniforms.u_time.value = time * 0.001; // Temps standard
+            uniforms.u_velocity.value = Math.min(velocity / 30.0, 1.0); // Réaction à la vitesse amortie
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_res.value.set(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
